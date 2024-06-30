@@ -1,21 +1,20 @@
-from os import scandir, rename
+from os import scandir, rename, makedirs
 from os.path import splitext, exists, join
 from shutil import move
 from time import sleep
-
+import zipfile
 import logging
-
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # ! FILL IN BELOW
 # ? folder to track e.g. Windows: "C:\\Users\\UserName\\Downloads"
 source_dir = "C:/Users/roshi/Downloads"
-dest_dir_sfx = ""
-dest_dir_music = ""
-dest_dir_video = "C:/Users/roshi/Desktop/downloded_video"
-dest_dir_image = "C:/Users/roshi/Desktop/downloded_image"
-dest_dir_documents = "C:/Users/roshi/Desktop/downloded_document"
+dest_dir_zip = "C:/Users/roshi/Desktop/downloaded_zip"
+dest_dir_video = "C:/Users/roshi/Desktop/downloaded_video"
+dest_dir_image = "C:/Users/roshi/Desktop/downloaded_image"
+dest_dir_documents = "C:/Users/roshi/Desktop/downloaded_document"
+extracted_dir = "C:/Users/roshi/Desktop/extracted_files"
 
 # ? supported image types
 image_extensions = [".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".jfi", ".png", ".gif", ".webp", ".tiff", ".tif", ".psd", ".raw", ".arw", ".cr2", ".nrw",
@@ -23,12 +22,11 @@ image_extensions = [".jpg", ".jpeg", ".jpe", ".jif", ".jfif", ".jfi", ".png", ".
 # ? supported Video types
 video_extensions = [".webm", ".mpg", ".mp2", ".mpeg", ".mpe", ".mpv", ".ogg",
                     ".mp4", ".mp4v", ".m4v", ".avi", ".wmv", ".mov", ".qt", ".flv", ".swf", ".avchd"]
-# ? supported Audio types
-audio_extensions = [".m4a", ".flac", "mp3", ".wav", ".wma", ".aac"]
 # ? supported Document types
 document_extensions = [".doc", ".docx", ".odt",
                        ".pdf", ".xls", ".xlsx", ".ppt", ".pptx"]
-
+# ? supported ZIP types
+zip_extensions = [".zip"]
 
 def make_unique(dest, name):
     filename, extension = splitext(name)
@@ -40,7 +38,6 @@ def make_unique(dest, name):
 
     return name
 
-
 def move_file(dest, entry, name):
     if exists(f"{dest}/{name}"):
         unique_name = make_unique(dest, name)
@@ -49,6 +46,10 @@ def move_file(dest, entry, name):
         rename(oldName, newName)
     move(entry, dest)
 
+def extract_zip(zip_path, extract_to):
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        zip_ref.extractall(extract_to)
+    logging.info(f"Extracted zip file: {zip_path} to {extract_to}")
 
 class MoverHandler(FileSystemEventHandler):
     # ? THIS FUNCTION WILL RUN WHENEVER THERE IS A CHANGE IN "source_dir"
@@ -57,20 +58,19 @@ class MoverHandler(FileSystemEventHandler):
         with scandir(source_dir) as entries:
             for entry in entries:
                 name = entry.name
-                self.check_audio_files(entry, name)
+                self.check_zip_files(entry, name)
                 self.check_video_files(entry, name)
                 self.check_image_files(entry, name)
                 self.check_document_files(entry, name)
 
-    def check_audio_files(self, entry, name):  # * Checks all Audio Files
-        for audio_extension in audio_extensions:
-            if name.endswith(audio_extension) or name.endswith(audio_extension.upper()):
-                if entry.stat().st_size < 10_000_000 or "SFX" in name:  # ? 10Megabytes
-                    dest = dest_dir_sfx
-                else:
-                    dest = dest_dir_music
-                move_file(dest, entry, name)
-                logging.info(f"Moved audio file: {name}")
+    def check_zip_files(self, entry, name):  # * Checks all ZIP Files
+        for zip_extension in zip_extensions:
+            if name.endswith(zip_extension) or name.endswith(zip_extension.upper()):
+                move_file(dest_dir_zip, entry, name)
+                logging.info(f"Moved zip file: {name}")
+                extracted_path = join(extracted_dir, splitext(name)[0])
+                makedirs(extracted_path, exist_ok=True)
+                extract_zip(join(dest_dir_zip, name), extracted_path)
 
     def check_video_files(self, entry, name):  # * Checks all Video Files
         for video_extension in video_extensions:
